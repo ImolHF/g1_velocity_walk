@@ -4,7 +4,9 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, R
 
 @configclass
 class G1VelocityWalkPPORunnerCfg(RslRlOnPolicyRunnerCfg):
-    num_steps_per_env = 24
+    # Larger rollout/update batches keep the two high-memory GPUs busy and
+    # reduce Python-side iteration/logging overhead relative to simulation.
+    num_steps_per_env = 32
     max_iterations = 3000
     save_interval = 50
     experiment_name = "g1_velocity_walk"
@@ -21,7 +23,7 @@ class G1VelocityWalkPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         clip_param=0.2,
         entropy_coef=0.008,
         num_learning_epochs=5,
-        num_mini_batches=4,
+        num_mini_batches=8,
         learning_rate=1.0e-3,
         schedule="adaptive",
         gamma=0.99,

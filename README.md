@@ -29,21 +29,33 @@ Nucleus).  This project intentionally has no path to the local Windows
 cd g1_velocity_walk
 conda activate isaaclab
 python -m pip install -e source/g1_velocity_walk
+
+# Avoid two training processes oversubscribing CPU BLAS/OpenMP threads.
+export CUDA_VISIBLE_DEVICES=0,1
+export OMP_NUM_THREADS=1
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
 ```
+
+The environment uses GPU PhysX, Fabric, GPU-resident Torch waypoint math, and
+no cameras or height scanner.  CPU is still required to launch two Isaac Sim
+processes, so no configuration can guarantee it will never limit throughput;
+the thread limits above prevent the usual CPU oversubscription problem.
 
 ## Stage 1: train walking
 
 ```bash
 python -m pip install -e source/g1_velocity_walk
 torchrun --standalone --nproc_per_node=2 scripts/rsl_rl/train.py \\
-  --task G1VelocityWalk-Flat-v0 --headless --distributed --num_envs 4096 \\
+  --task G1VelocityWalk-Flat-v0 --headless --distributed --num_envs 6144 \\
   --max_iterations 3000 --run_name walk_stage1
 ```
 
-`--num_envs 4096` is per GPU, so this uses 8192 parallel environments across
-two cards.  First run a small smoke test by replacing it with `--num_envs 256
---max_iterations 2`.  If your server has CPU headroom, increase the per-GPU
-count gradually; do not change the command to a total count.
+`--num_envs` is per GPU, not a total.  The recommended run uses 6144 on each
+card (12,288 total) and is tuned for two 72 GB GPUs.  First run a smoke test
+with `--num_envs 512 --max_iterations 2`, then use 4096 if the server CPU is
+still saturated or 8192 only after confirming both GPU memory and simulation
+steps/second have headroom.
 
 ## Stage 2: ordered 400 m waypoints
 
@@ -52,7 +64,7 @@ Find the final Stage 1 checkpoint under
 
 ```bash
 torchrun --standalone --nproc_per_node=2 scripts/rsl_rl/train.py \\
-  --task G1WaypointRace400m-v0 --headless --distributed --num_envs 4096 \\
+  --task G1WaypointRace400m-v0 --headless --distributed --num_envs 6144 \\
   --max_iterations 5000 --run_name waypoint_stage2 \\
   --resume --load_run '<walk-run>' --checkpoint 'model_.*.pt'
 ```

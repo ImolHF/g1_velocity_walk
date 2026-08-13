@@ -15,8 +15,12 @@ class G1VelocityWalkFlatEnvCfg(G1FlatEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 4096
-        self.scene.env_spacing = 2.5
+        # This is deliberately per GPU process.  With two 72 GB GPUs the
+        # default torchrun command therefore simulates 12,288 G1 instances.
+        # The large vectorized batch keeps PhysX and PPO on the GPUs instead
+        # of spending most wall time in Python/CPU scheduling.
+        self.scene.num_envs = 6144
+        self.scene.env_spacing = 2.0
         self.episode_length_s = 20.0
 
         # First-stage curriculum: stable forward walking only.  Navigation is
@@ -33,10 +37,12 @@ class G1VelocityWalkFlatEnvCfg(G1FlatEnvCfg):
         self.rewards.dof_torques_l2.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names=[".*_hip_.*", ".*_knee_joint", ".*_ankle_.*"]
         )
-        # Required capacity for thousands of articulated G1 instances.  These
-        # values follow Isaac Lab's 4096-environment humanoid configuration.
-        self.sim.physx.gpu_found_lost_pairs_capacity = 2**23
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 2**23
+        # GPU PhysX capacity for 6144 articulated G1 instances per process.
+        # No camera, ray-caster, or CPU-side waypoint calculations are used.
+        self.sim.physx.gpu_found_lost_pairs_capacity = 2**24
+        self.sim.physx.gpu_total_aggregate_pairs_capacity = 2**24
+        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 2**25
+        self.sim.physx.gpu_max_num_partitions = 32
 
 
 @configclass

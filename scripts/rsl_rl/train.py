@@ -11,7 +11,12 @@ import cli_args
 
 
 parser = argparse.ArgumentParser(description="Train G1 flat-ground locomotion with RSL-RL.")
-parser.add_argument("--num_envs", type=int, default=None)
+parser.add_argument(
+    "--num_envs",
+    type=int,
+    default=None,
+    help="Environments per GPU process (not the total across all GPUs).",
+)
 parser.add_argument("--task", type=str, default="G1VelocityWalk-Flat-v0")
 parser.add_argument("--seed", type=int, default=None)
 parser.add_argument("--max_iterations", type=int, default=None)
@@ -47,6 +52,8 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device or env_cfg.sim.device
     if args_cli.distributed:
+        # ``torchrun`` creates one process per GPU.  Each process owns its own
+        # PhysX scene, so num_envs above is intentionally per GPU.
         env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
         agent_cfg.device = f"cuda:{app_launcher.local_rank}"
         env_cfg.seed = agent_cfg.seed + app_launcher.local_rank
